@@ -1,4 +1,13 @@
--module(server).
+%%%-------------------------------------------------------------------
+%%% @author user
+%%% @copyright (C) 2025, <COMPANY>
+%%% @doc
+%%%
+%%% @end
+%%% Created : 17. март 2025 18:11
+%%%-------------------------------------------------------------------
+-module(tcp_controller).
+-author("user").
 
 -behaviour(gen_server).
 
@@ -34,9 +43,7 @@ init([Port]) ->
     {ok, ListenSocket} = gen_tcp:listen(Port, Opts),
     io:format("Start listen socket ~p with Port ~p~n", [ListenSocket, Port]),
     _ListUsers = [],
-    M = users_mnesia_driver:storage_init(),
-    io:format("mnesia ~p~n", [M]),
-    [{ok, _} = tcp_server_sup:start_socket([self(), N, ListenSocket]) || N <- lists:seq(1, 5)],
+    R = [{ok, _} = tcp_server_sup:start_socket([self(), N, ListenSocket]) || N <- lists:seq(1, 5)],
     {ok, #state{}}.
 
 handle_call(_Request, _From, State = #state{}) ->
@@ -46,7 +53,7 @@ handle_cast(_Request, State = #state{}) ->
     {noreply, State}.
 
 handle_info({send_msg, FromSocket, Msg}, State = #state{accept_sockets = AcceptSockets}) ->
-    lists:foreach(
+    lists:foeach(
         fun
             (AS) when AS =:= FromSocket ->
                 skip;
@@ -67,20 +74,6 @@ terminate(_Reason, _State = #state{}) ->
 code_change(_OldVsn, State = #state{}, _Extra) ->
     {ok, State}.
 
-
-%%%%------------------------------------------------------------------------------
-%%%% API functions
-%%%%------------------------------------------------------------------------------
-%%start(Port) ->
-%%    tcp_controller:start(Port).
-%%%%    Opts = [binary, {active, once}, {reuseaddr, true}], % {packet, raw},
-%%%%    {ok, ListenSocket} = gen_tcp:listen(Port, Opts),
-%%%%    io:format("Start listen socket ~p with Port ~p~n", [ListenSocket, Port]),
-%%%%    _ListUsers = [],
-%%%%    R = [{ok, _} = tcp_server_sup:start_socket([self(), N, ListenSocket]) || N <- lists:seq(1, 5)],
-%%%%    {ok, R}.
-%%
-%%%% @doc Stop gen_tcp_server.
-%%-spec stop(pid()) -> true.
-%%stop(Pid) ->
-%%    exit(Pid, normal).
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================

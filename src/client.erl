@@ -9,9 +9,12 @@
 -module(client).
 -author("ulya").
 
+-include("tcp_server.hrl").
+
 -behaviour(gen_server).
 
 %% API
+-export([create_account/2, login/3]).
 -export([start/1, start/2, send/1, stop/0]).
 -export([start_link/2]).
 
@@ -21,13 +24,33 @@
 
 -define(SERVER, ?MODULE).
 
--record(client_state, {socket, host, port}).
+-record(client_state, {socket, host, port, users}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
-start(Port) ->
-    start("localhost", Port).
+create_account(Login, Password) ->
+    case users_mnesia_driver:get_user(Login) of
+        {ok, User} when is_map(User) ->
+            {error, already_created};
+        error ->
+            users_mnesia_driver:create_user(Login, Password)
+    end.
+
+login(Login, Password, Data) ->
+    case users_mnesia_driver:get_user(Login) of
+        {ok, #{Login := StoragePassword}} when StoragePassword =:= Password ->
+            start(Data);
+        {ok, #{Login := StoragePassword}} ->
+            {error, wrong_password};
+        error ->
+            {error, user_not_found}
+    end.
+
+start([Port]) ->
+    start("localhost", Port);
+start([Host, Port]) ->
+    start(Host, Port).
 
 start(Host, Port) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [Host, Port], []).

@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/2]).
+-export([start_link/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -15,8 +15,8 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
-start_link(N, ListenSocket) ->
-    gen_server:start_link(?MODULE, [self(), N, ListenSocket], []).
+start_link(Parent, N, ListenSocket) ->
+    gen_server:start_link(?MODULE, [Parent, N, ListenSocket], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -24,8 +24,6 @@ start_link(N, ListenSocket) ->
 
 init([Parent, N, ListenSocket]) ->
     io:format("Start tcp server ~p~n", [N]),
-    %% Start accepting requests
-    %% We must cast this to the worker's process, as it blocks it.
     self() ! accept,
     {ok, #state{n = N, parent = Parent, listen_socket = ListenSocket}}.
 
@@ -38,23 +36,19 @@ handle_info(accept, State = #state{n = N, parent = Parent, listen_socket = Liste
     case gen_tcp:accept(ListenSocket) of
         {ok, AcceptSocket}  ->
             io:format("session #~p, started Accept socket ~p~n", [N, AcceptSocket]),
-            %% Boot a new listener to replace this one.
-%%            R  = tcp_server_sup:start_socket([N, ListenSocket]),
-%%%%            self() ! accept,
-%%            inet:setopts(AcceptSocket, [{active,once}]),
-%%            R = supervisor:start_child(Parent, []),
-%%            io:format("start child ~p Parent ~p~n", [R, Parent]),
+            Parent ! {accept_socket, AcceptSocket},
             {noreply, State#state{accept_socket = AcceptSocket}};
         {error, Reason} ->
             io:format("Can't Accept by reason ~p~n", [Reason]),
             {stop, Reason, State}
     end;
-handle_info({tcp, Socket, Msg}, State) ->
+handle_info({tcp, Socket, Msg}, State = #state{parent = Parent}) ->
     io:format("tcp server Socket ~p, Msg ~p~n", [Socket, Msg]),
-    ok = gen_tcp:send(Socket, io_lib:format(Msg, [])),
+    Parent ! {send_msg, Socket, Msg},
     ok = inet:setopts(Socket, [{active, once}]),
     {noreply, State};
-handle_info({tcp_closed, _Socket}, State) ->
+handle_info({tcp_closed, _Socket}, State = #state{n = N, parent = Parent, listen_socket = ListenSocket}) ->
+    tcp_server_sup:start_socket([self(), N, ListenSocket]),
     {stop, normal, State};
 handle_info({tcp_error, _Socket, _}, State) ->
     {stop, normal, State};
