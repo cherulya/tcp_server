@@ -9,7 +9,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_child/1, start_socket/1, start_link/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -20,10 +20,8 @@
 %%% API functions
 %%%===================================================================
 
-%% @doc Starts the supervisor
--spec(start_link() -> {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -36,14 +34,16 @@ init([]) ->
         intensity => 60,
         period    => 3600
     },
-    {ok, ListenSocket} = gen_tcp:listen(5000, [{active, once}]),
     %% We start our pool of empty listeners.
     %% We must do this in another, as it is a blocking process.
+%%    Opts = [binary, {active, once}, {reuseaddr, true}], % {packet, raw},
+%%    {ok, ListenSocket} = gen_tcp:listen(Port, Opts),
+%%    io:format("Start listen socket ~p with Port ~p~n", [ListenSocket, Port]),
 %%    spawn_link(fun empty_listeners/0),
     ChildSpecs = [
         #{
             id       => tcp_server,
-            start    => {tcp_server, start_link, [ListenSocket]},
+            start    => {tcp_server, start_link, []},
             restart  => temporary,
             shutdown => 1000,
             type     => worker,
@@ -63,10 +63,12 @@ init([]) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-start_socket() ->
-    supervisor:start_child(?MODULE, []).
+start_socket(Opts) ->
+    supervisor:start_child(?MODULE, Opts).
 
+%%empty_listeners() ->
+%%    [start_socket() || _ <- lists:seq(1,20)],
+%%    ok.
 
-empty_listeners() ->
-    [start_socket() || _ <- lists:seq(1,20)],
-    ok.
+start_child(Server) ->
+    supervisor:start_child(Server, []).

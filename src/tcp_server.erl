@@ -3,49 +3,56 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1]).
+-export([start_link/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -define(SERVER, ?MODULE).
 
--record(state, {socket}).
+-record(state, {n, parent, listen_socket, accept_socket}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
-
-%% @doc Spawns the server and registers the local name (unique)
--spec(start_link(Socket :: term()) -> {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link(Socket) ->
-    gen_server:start_link(?MODULE, Socket, []).
+start_link(N, ListenSocket) ->
+    gen_server:start_link(?MODULE, [self(), N, ListenSocket], []).
 
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
 
-init(Socket) ->
+init([Parent, N, ListenSocket]) ->
+    io:format("Start tcp server ~p~n", [N]),
     %% Start accepting requests
     %% We must cast this to the worker's process, as it blocks it.
-    gen_server:cast(self(), accept),
-    {ok, #state{socket = Socket}}.
+    self() ! accept,
+    {ok, #state{n = N, parent = Parent, listen_socket = ListenSocket}}.
 
-handle_cast(accept, State = #state{socket = ListenSocket}) ->
-    {ok, AcceptSocket} = gen_tcp:accept(ListenSocket),
-    %% Boot a new listener to replace this one.
-    tcp_server_sup:start_socket(),
-    send(AcceptSocket, "Hello", []),
-    {noreply, State#state{socket = AcceptSocket}};
+
 handle_cast(_, State) ->
     {noreply, State}.
 
-
-handle_info({tcp, Socket, "quit"++_}, State) ->
-    gen_tcp:close(Socket),
-    {stop, normal, State};
+handle_info(accept, State = #state{n = N, parent = Parent, listen_socket = ListenSocket}) ->
+    io:format("Socket #~p, wait for client ~n", [N]),
+    case gen_tcp:accept(ListenSocket) of
+        {ok, AcceptSocket}  ->
+            io:format("session #~p, started Accept socket ~p~n", [N, AcceptSocket]),
+            %% Boot a new listener to replace this one.
+%%            R  = tcp_server_sup:start_socket([N, ListenSocket]),
+%%%%            self() ! accept,
+%%            inet:setopts(AcceptSocket, [{active,once}]),
+%%            R = supervisor:start_child(Parent, []),
+%%            io:format("start child ~p Parent ~p~n", [R, Parent]),
+            {noreply, State#state{accept_socket = AcceptSocket}};
+        {error, Reason} ->
+            io:format("Can't Accept by reason ~p~n", [Reason]),
+            {stop, Reason, State}
+    end;
 handle_info({tcp, Socket, Msg}, State) ->
-    send(Socket, Msg, []),
+    io:format("tcp server Socket ~p, Msg ~p~n", [Socket, Msg]),
+    ok = gen_tcp:send(Socket, io_lib:format(Msg, [])),
+    ok = inet:setopts(Socket, [{active, once}]),
     {noreply, State};
 handle_info({tcp_closed, _Socket}, State) ->
     {stop, normal, State};
@@ -67,9 +74,3 @@ code_change(_OldVersion, Tab, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
-%% Send a message back to the client
-send(Socket, Str, Args) ->
-    ok = gen_tcp:send(Socket, io_lib:format(Str ++ "~n", Args)),
-    ok = inet:setopts(Socket, [{active, once}]),
-    ok.
