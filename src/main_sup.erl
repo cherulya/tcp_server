@@ -44,13 +44,6 @@ init([]) ->
             shutdown => 5000,
             type     => supervisor
         }
-%%        #{
-%%            id       => tcp_controller,
-%%            start    => {tcp_controller, start_link, []},
-%%            restart  => transient,
-%%            shutdown => 5000,
-%%            type     => worker
-%%        }
     ],
     {ok, {SupFlags, ChildSpecs}}.
 

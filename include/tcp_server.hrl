@@ -6,6 +6,6 @@
 
 
 -record(tcp_user, {
-    login :: binary() | undefined,
-    password :: term() | undefined
+    password :: term() | undefined,
+    login :: binary() | undefined
 }).

@@ -21,14 +21,13 @@
 %% API
 %%====================================================================
 storage_init() ->
+    mnesia:create_schema([node()]),
     mnesia:start(),
     TableName = ?TABLE_NAME,
     TableAttributes = [
         {disc_copies, [node()]},
         {type, ordered_set},
-        {index, [login]},
-        {attributes, record_info(fields, tcp_user)},
-        {record_name, tcp_user}
+        {attributes, record_info(fields, tcp_user)}
         ],
     case mnesia:create_table(TableName, TableAttributes) of
         {atomic, ok} ->

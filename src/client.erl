@@ -1,13 +1,9 @@
 %%%-------------------------------------------------------------------
-%%% @author ulya
-%%% @copyright (C) 2025, <COMPANY>
 %%% @doc
 %%%
 %%% @end
-%%% Created : 13. Mar 2025 6:25 PM
 %%%-------------------------------------------------------------------
 -module(client).
--author("ulya").
 
 -include("tcp_server.hrl").
 
@@ -30,21 +26,14 @@
 %%% API
 %%%===================================================================
 create_account(Login, Password) ->
-    case users_mnesia_driver:get_user(Login) of
-        {ok, User} when is_map(User) ->
-            {error, already_created};
-        error ->
-            users_mnesia_driver:create_user(Login, Password)
-    end.
+    server:create_account(Login, Password).
 
 login(Login, Password, Data) ->
-    case users_mnesia_driver:get_user(Login) of
-        {ok, #{Login := StoragePassword}} when StoragePassword =:= Password ->
+    case server:create_account(Login, Password) of
+        ok ->
             start(Data);
-        {ok, #{Login := StoragePassword}} ->
-            {error, wrong_password};
-        error ->
-            {error, user_not_found}
+        Error ->
+            Error
     end.
 
 start([Port]) ->
