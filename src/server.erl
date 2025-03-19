@@ -3,7 +3,6 @@
 -behaviour(gen_server).
 
 %% API
--export([create_account/2, login/2]).
 -export([start/1, stop/1]).
 -export([start_link/1]).
 
@@ -17,14 +16,6 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
--spec create_account(Login :: binary(), Password :: term()) -> ok | {error, Reason :: term()}.
-create_account(Login, Password) ->
-    gen_server:call(?MODULE, {create_account, Login, Password}).
-
--spec login(Login :: binary(), Password :: term()) -> ok | {error, Reason :: term()}.
-login(Login, Password) ->
-    gen_server:call(?MODULE, {login, Login, Password}).
-
 start(Port) ->
     start_link(Port).
 
@@ -48,32 +39,39 @@ init([Port]) ->
     [{ok, _} = tcp_server_sup:start_socket([self(), N, ListenSocket]) || N <- lists:seq(1, 5)],
     {ok, #state{users = AllUsers}}.
 
-handle_call({create_account, Login, _Password}, _From, #state{users = Users} = State) when is_map_key(Login, Users) ->
-    {reply, {error, already_created}, State};
-handle_call({create_account, Login, Password}, _From, #state{users = Users} = State) ->
-    case users_mnesia_driver:create_user(Login, Password) of
-        ok ->
-            {reply, ok, State#state{users = Users#{Login => Password}}};
-        error ->
-            {reply, {error, can_not_create}, State}
-    end;
-handle_call({login, Login, Password}, _From, #state{users = Users} = State) ->
-    Result =
-        case maps:find(Login, Users) of
-            {ok, StoragePassword} when Password =:= StoragePassword ->
-                ok;
-            {ok, _CorrectPassword} ->
-                {error, wrong_password};
-            error ->
-                {error, user_not_found}
-        end,
-    {reply, Result, State};
 handle_call(_Request, _From, State = #state{}) ->
     {reply, ok, State}.
 
 handle_cast(_Request, State = #state{}) ->
     {noreply, State}.
 
+handle_info({login, FromSocket, Login, Password}, State = #state{users = Users}) ->
+    Answer =
+        case maps:find(Login, Users) of
+            {ok, StoragePassword} when Password =:= StoragePassword ->
+                <<"ok">>;
+            {ok, _CorrectPassword} ->
+                <<"wrong_password">>;
+            error ->
+                <<"user_not_found">>
+        end,
+    gen_tcp:send(FromSocket, io_lib:format(Answer, [])),
+    {noreply, State};
+handle_info({create_account, FromSocket, Login, Password}, State = #state{users = Users}) ->
+    {Answer, NewState} =
+        case maps:find(Login, Users) of
+            {ok, _Password} ->
+                {<<"already_created">>, State};
+            error ->
+                case users_mnesia_driver:create_user(Login, Password) of
+                    ok ->
+                        {<<"ok">>, State#state{users = Users#{Login => Password}}};
+                    error ->
+                        {<<"can_not_create">>, State}
+                end
+        end,
+    gen_tcp:send(FromSocket, io_lib:format(Answer, [])),
+    {noreply, NewState};
 handle_info({send_msg, FromSocket, Msg}, State = #state{accept_sockets = AcceptSockets}) ->
     lists:foreach(
         fun

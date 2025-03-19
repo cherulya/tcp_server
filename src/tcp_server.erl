@@ -44,10 +44,18 @@ handle_info(accept, State = #state{n = N, parent = Parent, listen_socket = Liste
     end;
 handle_info({tcp, Socket, Msg}, State = #state{parent = Parent}) ->
     io:format("tcp server Socket ~p, Msg ~p~n", [Socket, Msg]),
-    Parent ! {send_msg, Socket, Msg},
+    case binary:split(Msg, [<<":">>, <<"/">>], [global]) of
+        [<<"login">>, Login, <<"password">>, Password] ->
+            Parent ! {login, Socket, Login, Password};
+        [<<"new_login">>, Login, <<"new_password">>, Password] ->
+            Parent ! {create_account, Socket, Login, Password};
+        [Msg] ->
+            Parent ! {send_msg, Socket, Msg}
+    end,
     ok = inet:setopts(Socket, [{active, once}]),
     {noreply, State};
-handle_info({tcp_closed, _Socket}, State = #state{n = N, parent = Parent, listen_socket = ListenSocket}) ->
+handle_info({tcp_closed, Socket}, State = #state{n = N, listen_socket = ListenSocket}) ->
+    io:fwrite("tcp_closed: ~p~n", [Socket]),
     tcp_server_sup:start_socket([self(), N, ListenSocket]),
     {stop, normal, State};
 handle_info({tcp_error, _Socket, _}, State) ->
