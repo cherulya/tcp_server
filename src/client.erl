@@ -49,7 +49,7 @@ start_link(Host, Port) ->
 %%%===================================================================
 
 init([Host, Port]) ->
-    {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {active, true}, {packet, raw}]),
+    {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, 4}]),
     io:format("Client ~p connects to ~p:~p with socket ~p~n", [self(), Host, Port, Socket]),
     {ok, #client_state{socket = Socket, host = Host, port = Port}}.
 
@@ -57,16 +57,16 @@ handle_call(_Request, _From, State = #client_state{}) ->
     {reply, ok, State}.
 
 handle_cast({login, Login, Password}, State = #client_state{socket = Socket}) ->
-    LP = <<"login:"/utf8, Login/binary, "/password:"/utf8, Password/binary>>,
-    gen_tcp:send(Socket, LP),
+    Msg = <<"login:"/utf8, Login/binary, "/password:"/utf8, Password/binary>>,
+    gen_tcp:send(Socket, Msg),
     {noreply, State};
 handle_cast({create_account, Login, Password}, State = #client_state{socket = Socket}) ->
-    LP = <<"new_login:"/utf8, Login/binary, "/new_password:"/utf8, Password/binary>>,
-    gen_tcp:send(Socket, LP),
+    Msg = <<"new_login:"/utf8, Login/binary, "/new_password:"/utf8, Password/binary>>,
+    gen_tcp:send(Socket, Msg),
     {noreply, State};
 handle_cast({send, Msg}, State = #client_state{socket = Socket}) ->
     Result = gen_tcp:send(Socket, Msg),
-    io:format("Client ~p send to Socket ~p msg ~p with result: ~p~n", [self(), Socket, Msg, Result]),
+    io:format("Client ~p sends to Socket ~p msg ~p with result: ~p~n", [self(), Socket, Msg, Result]),
     {noreply, State};
 handle_cast(stop, State = #client_state{socket = Socket}) ->
     io:format("Client ~p closes connection and stops~n", [self()]),
@@ -75,13 +75,13 @@ handle_cast(stop, State = #client_state{socket = Socket}) ->
 handle_cast(_Request, State = #client_state{}) ->
     {noreply, State}.
 
-handle_info({tcp, _Socket, <<"ok">> = Msg}, State = #client_state{}) ->
-    io:format("Client ~p got message: ~p~n", [self(), Msg]),
-    {noreply, State};
-handle_info({tcp, _Socket, Msg}, State = #client_state{socket = Socket})
-    when Msg =:= <<"wrong_password">> orelse Msg =:= <<"user_not_found">> orelse Msg =:= <<"already_created">> orelse Msg =:= <<"can_not_create">> ->
-    io:format("Client ~p got message: ~p~n", [self(), Msg]),
-    gen_tcp:close(Socket),
+handle_info({tcp, _Socket, Msg}, State = #client_state{socket = _Socket}) when
+   Msg =:= <<"auth_error">> orelse
+   Msg =:= <<"login already created">> orelse
+   Msg =:= <<"can't create account">> orelse
+   Msg =:= <<"already_connection">> ->
+    io:format("Client ~p got error message: ~p~n", [self(), Msg]),
+%%    gen_tcp:close(Socket),
     {noreply, State};
 handle_info({tcp, _Socket, Msg}, State = #client_state{}) ->
     io:format("Client ~p got message: ~p~n", [self(), Msg]),
