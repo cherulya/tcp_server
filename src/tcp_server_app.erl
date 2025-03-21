@@ -10,9 +10,7 @@
 -export([start/2, stop/1]).
 
 start(_StartType, _StartArgs) ->
-    R = main_sup:start_link(),
-    io:format("tcp_server_app ~p~n", [R]),
-    R.
+    tcp_server_sup:start_link().
 
 stop(_State) ->
     ok.

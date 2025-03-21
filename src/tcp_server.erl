@@ -23,7 +23,7 @@ start_link(Parent, N, ListenSocket) ->
 %%%===================================================================
 
 init([Parent, N, ListenSocket]) ->
-    io:format("Start tcp server ~p~n", [N]),
+    io:format("Start tcp server #~p~n", [N]),
     {ok, #state{n = N, parent = Parent, listen_socket = ListenSocket}, {continue, accept}}.
 
 handle_continue(accept, State = #state{n = N, parent = Parent, listen_socket = ListenSocket}) ->
@@ -32,7 +32,7 @@ handle_continue(accept, State = #state{n = N, parent = Parent, listen_socket = L
         {ok, AcceptSocket}  ->
             io:format("session #~p, started Accept socket ~p~n", [N, AcceptSocket]),
             Parent ! {accept_socket, AcceptSocket},
-            server:start_socket(N+5),
+            server:start_socket(N + 5),
             {noreply, State#state{accept_socket = AcceptSocket}};
         {error, Reason} ->
             io:format("Can't Accept by reason ~p~n", [Reason]),
@@ -52,10 +52,10 @@ handle_info({tcp, Socket, Msg}, State = #state{parent = Parent}) ->
         [Msg] ->
             Parent ! {send_msg, Socket, Msg}
     end,
-%%    ok = inet:setopts(Socket, [{active, once}]),
     {noreply, State};
-handle_info({tcp_closed, Socket}, State = #state{n = N, listen_socket = _ListenSocket}) ->
+handle_info({tcp_closed, Socket}, State = #state{n = N}) ->
     io:fwrite("tcp_closed: ~p~n", [Socket]),
+    server:delete_socket(Socket),
     server:start_socket(N),
     {stop, normal, State};
 handle_info({tcp_error, _Socket, _}, State) ->
@@ -67,12 +67,8 @@ handle_info(E, State) ->
 handle_call(_E, _From, State) ->
     {noreply, State}.
 
-terminate(_Reason, _Tab) ->
+terminate(_Reason, _State) ->
     ok.
 
 code_change(_OldVersion, Tab, _Extra) ->
     {ok, Tab}.
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================

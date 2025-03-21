@@ -23,17 +23,16 @@
 storage_init() ->
     mnesia:create_schema([node()]),
     mnesia:start(),
-    TableName = ?TABLE_NAME,
     TableAttributes = [
         {disc_copies, [node()]},
         {type, ordered_set},
         {attributes, record_info(fields, tcp_user)}
         ],
-    case mnesia:create_table(TableName, TableAttributes) of
+    case mnesia:create_table(?TABLE_NAME, TableAttributes) of
         {atomic, ok} ->
-            mnesia:wait_for_tables([TableName], 30000);
+            mnesia:wait_for_tables([?TABLE_NAME], 30000);
         {aborted, {already_exists, _Name}} ->
-            mnesia:wait_for_tables([TableName], 30000);
+            mnesia:wait_for_tables([?TABLE_NAME], 30000);
         {aborted, Reason} ->
             {error, Reason}
     end.

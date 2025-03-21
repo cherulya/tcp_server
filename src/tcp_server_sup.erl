@@ -9,7 +9,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_child/1, start_socket/1, start_link/0]).
+-export([start_child/1, delete_child/1, terminate_child/1, start_link/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -19,6 +19,18 @@
 %%%===================================================================
 %%% API functions
 %%%===================================================================
+
+-spec start_child(ChildId :: pid()) -> ok | {error, Error :: atom()}.
+start_child(Opts) ->
+    supervisor:start_child(?MODULE, Opts).
+
+-spec delete_child(ChildId :: pid()) -> ok | {error, Error :: atom()}.
+delete_child(ChildId) ->
+    supervisor:delete_child(?MODULE, ChildId).
+
+-spec terminate_child(ChildId :: pid()) -> ok | {error, Error :: atom()}.
+terminate_child(ChildId) ->
+    supervisor:terminate_child(?MODULE, ChildId).
 
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
@@ -44,12 +56,3 @@ init([]) ->
         }
     ],
     {ok, {SupFlags, ChildSpecs}}.
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
-start_socket(Opts) ->
-    supervisor:start_child(?MODULE, Opts).
-
-start_child(Server) ->
-    supervisor:start_child(Server, []).

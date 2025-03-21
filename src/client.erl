@@ -1,8 +1,3 @@
-%%%-------------------------------------------------------------------
-%%% @doc
-%%%
-%%% @end
-%%%-------------------------------------------------------------------
 -module(client).
 
 -include("tcp_server.hrl").
@@ -49,9 +44,14 @@ start_link(Host, Port) ->
 %%%===================================================================
 
 init([Host, Port]) ->
-    {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, 4}]),
-    io:format("Client ~p connects to ~p:~p with socket ~p~n", [self(), Host, Port, Socket]),
-    {ok, #client_state{socket = Socket, host = Host, port = Port}}.
+    case gen_tcp:connect(Host, Port, [binary, {packet, 4}]) of
+        {ok, Socket} ->
+            io:format("Client ~p connects to ~p:~p with socket ~p~n", [self(), Host, Port, Socket]),
+            {ok, #client_state{socket = Socket, host = Host, port = Port}};
+        {error, Reason} ->
+            io:format("Client ~p can't connect to ~p:~p by reason ~p~n", [self(), Host, Port, Reason]),
+            {stop, normal}
+    end.
 
 handle_call(_Request, _From, State = #client_state{}) ->
     {reply, ok, State}.
@@ -71,8 +71,8 @@ handle_cast({send, Msg}, State = #client_state{socket = Socket}) ->
 handle_cast(stop, State = #client_state{socket = Socket}) ->
     io:format("Client ~p closes connection and stops~n", [self()]),
     gen_tcp:close(Socket),
-    {noreply, State};
-handle_cast(_Request, State = #client_state{}) ->
+    {stop, normal, State};
+handle_cast(_Request, State) ->
     {noreply, State}.
 
 handle_info({tcp, _Socket, Msg}, State = #client_state{socket = _Socket}) when
@@ -81,24 +81,23 @@ handle_info({tcp, _Socket, Msg}, State = #client_state{socket = _Socket}) when
    Msg =:= <<"can't create account">> orelse
    Msg =:= <<"already_connection">> ->
     io:format("Client ~p got error message: ~p~n", [self(), Msg]),
-%%    gen_tcp:close(Socket),
     {noreply, State};
-handle_info({tcp, _Socket, Msg}, State = #client_state{}) ->
+handle_info({tcp, _Socket, Msg}, State) ->
     io:format("Client ~p got message: ~p~n", [self(), Msg]),
     {noreply, State};
-handle_info(stop, State = #client_state{socket = Socket}) ->
-    io:format("Client ~p closes connection and stops~n", [self()]),
-    gen_tcp:close(Socket),
-    {noreply, State};
-handle_info(_Info, State = #client_state{}) ->
+handle_info({tcp_closed, Socket}, State) ->
+    io:format("~p: tcp closed normal with socket: ~p~n", [self(), Socket]),
+    {stop, normal, State};
+handle_info({tcp_error, Socket, Reason}, State) ->
+    io:format("~p: error ~p tcp closed with socket: ~p~n", [self(), Reason, Socket]),
+    {stop, {tcp_error, Reason}, State};
+handle_info(_Info, State) ->
     {noreply, State}.
 
-terminate(_Reason, _State = #client_state{}) ->
+terminate(_Reason, _State = #client_state{socket = Socket}) ->
+    io:format("Close socket ~p~n", [Socket]),
+    gen_tcp:close(Socket),
     ok.
 
-code_change(_OldVsn, State = #client_state{}, _Extra) ->
+code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================

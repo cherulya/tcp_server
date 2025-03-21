@@ -3,7 +3,12 @@
 -behaviour(gen_server).
 
 %% API
--export([start/1, stop/1, start_socket/1]).
+-export([
+    start/1,
+    stop/0,
+    start_socket/1,
+    delete_socket/1
+]).
 -export([start_link/1]).
 
 %% gen_server callbacks
@@ -11,7 +16,13 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {accept_sockets = [], users = #{}, auth_users = #{}, listen_socket}).
+-record(state, {
+    accept_sockets = [],
+    users = #{},
+    auth_users = #{},
+    listen_socket,
+    workers
+}).
 
 %%%===================================================================
 %%% API
@@ -22,8 +33,11 @@ start(Port) ->
 start_socket(N) ->
     gen_server:cast(?MODULE, {start_socket, N}).
 
-stop(Pid) ->
-    exit(Pid, normal).
+delete_socket(Socket) ->
+    gen_server:cast(?MODULE, {start_socket, Socket}).
+
+stop() ->
+    gen_server:cast(?MODULE, stop).
 
 start_link(Port) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [Port], []).
@@ -38,15 +52,35 @@ init([Port]) ->
     io:format("Server starts listen socket ~p with port ~p~n", [ListenSocket, Port]),
     users_mnesia_driver:storage_init(),
     AllUsers = users_mnesia_driver:get_all_users(),
-    [{ok, _} = start_socket(N, ListenSocket) || N <- lists:seq(1, 5)],
-    {ok, #state{users = AllUsers, listen_socket = ListenSocket}}.
+    TcpServerWorkers =
+        lists:foldl(
+            fun(N, Acc) ->
+                {ok, Pid} = start_socket(N, ListenSocket),
+                [Pid | Acc]
+            end,
+            [],
+            lists:seq(1, 5)
+        ),
+    {ok, #state{users = AllUsers, listen_socket = ListenSocket, workers = TcpServerWorkers}}.
 
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
-handle_cast({start_socket, N}, State = #state{listen_socket = ListenSocket}) ->
-    start_socket(N, ListenSocket),
-    {noreply, State};
+handle_cast({start_socket, N}, State = #state{listen_socket = ListenSocket, workers = Workers}) ->
+    {ok, Pid} = start_socket(N, ListenSocket),
+    {noreply, State#state{workers = [Pid | Workers]}};
+handle_cast({delete_socket, Socket}, State = #state{accept_sockets = AcceptSocket, auth_users = AuthUsers}) ->
+    UpdateAcceptSocket =  lists:delete(Socket, AcceptSocket),
+    UpdateAuthUsers = maps:filter(
+        fun(_Login, StorageSocket) ->
+            StorageSocket =/= Socket
+        end,
+        AuthUsers
+    ),
+    {noreply, State#state{accept_sockets = UpdateAcceptSocket, auth_users = UpdateAuthUsers}};
+handle_cast(stop, State = #state{accept_sockets = AcceptSockets, workers = Workers}) ->
+    stop(AcceptSockets, Workers),
+    {stop, normal, State};
 handle_cast(_Request, State = #state{}) ->
     {noreply, State}.
 
@@ -102,12 +136,32 @@ handle_info({accept_socket, AcceptSocket}, State = #state{accept_sockets = Accep
 handle_info(_Info, State = #state{}) ->
     {noreply, State}.
 
-terminate(_Reason, _State = #state{}) ->
+terminate(_Reason, _State = #state{accept_sockets = AcceptSockets, workers = Workers}) ->
+    stop(AcceptSockets, Workers),
     ok.
 
-code_change(_OldVsn, State = #state{}, _Extra) ->
+code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
 
 start_socket(N, ListenSocket) ->
-    tcp_server_sup:start_socket([self(), N, ListenSocket]).
+    tcp_server_sup:start_child([self(), N, ListenSocket]).
+
+stop(AcceptSockets, Workers) ->
+    lists:foreach(
+        fun(AcceptSocket) ->
+            io:format("Close socket ~p~n", [AcceptSocket]),
+            gen_tcp:close(AcceptSocket)
+        end,
+        AcceptSockets
+    ),
+    lists:foreach(
+        fun(Worker) ->
+            tcp_server_sup:terminate_child(Worker),
+            tcp_server_sup:delete_child(Worker)
+        end,
+        Workers
+    ).
