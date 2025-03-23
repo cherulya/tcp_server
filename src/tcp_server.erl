@@ -29,9 +29,11 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
+-spec start(Port :: integer()) -> {ok, pid()} | {error, Reason :: atom()}.
 start(Port) ->
     start_link(Port).
 
+-spec start_socket(N :: integer()) -> ok.
 start_socket(N) ->
     gen_server:cast(?MODULE, {start_socket, N}).
 

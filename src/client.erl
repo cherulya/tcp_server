@@ -5,7 +5,14 @@
 -behaviour(gen_server).
 
 %% API
--export([connect/1, connect/2, create_account/2, login/2, send/1, stop/0]).
+-export([
+    connect/1,
+    connect/2,
+    create_account/2,
+    login/2,
+    send/1,
+    stop/0
+]).
 -export([start_link/2]).
 
 %% gen_server callbacks
@@ -18,21 +25,33 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
+-spec connect(Port :: integer()) -> {ok, pid()} | {error, Reason :: atom()}.
 connect(Port) ->
     connect("localhost", Port).
 
+-spec connect(Host :: term(), Port :: integer()) -> {ok, pid()} | {error, Reason :: atom()}.
 connect(Host, Port) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [Host, Port], []).
 
-create_account(Login, Password) ->
-    gen_server:cast(?MODULE, {create_account, Login, Password}).
+-spec create_account(Login :: binary(), Password :: binary()) -> ok | {error, Reason :: atom()}.
+create_account(Login, Password) when is_binary(Login) andalso is_binary(Password) ->
+    gen_server:cast(?MODULE, {create_account, Login, Password});
+create_account(_Login, _Password) ->
+    {error, wrong_format}.
 
-login(Login, Password) ->
-    gen_server:cast(?MODULE, {login, Login, Password}).
+-spec login(Login :: binary(), Password :: binary()) -> ok | {error, Reason :: atom()}.
+login(Login, Password) when is_binary(Login) andalso is_binary(Password) ->
+    gen_server:cast(?MODULE, {login, Login, Password});
+login(_Login, _Password) ->
+    {error, wrong_format}.
 
-send(Msg) ->
-    gen_server:cast(?MODULE, {send, Msg}).
+-spec send(Msg :: binary()) -> ok | {error, Reason :: atom()}.
+send(Msg) when is_binary(Msg) ->
+    gen_server:cast(?MODULE, {send, Msg});
+send(_Msg) ->
+    {error, wrong_format}.
 
+-spec stop() -> ok.
 stop() ->
     gen_server:cast(?MODULE, stop).
 
@@ -42,7 +61,6 @@ start_link(Host, Port) ->
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
-
 init([Host, Port]) ->
     case gen_tcp:connect(Host, Port, [binary, {packet, 4}]) of
         {ok, Socket} ->
