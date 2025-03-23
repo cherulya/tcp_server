@@ -37,9 +37,11 @@ start(Port) ->
 start_socket(N) ->
     gen_server:cast(?MODULE, {start_socket, N}).
 
+-spec delete_socket(Socket :: socket()) -> ok.
 delete_socket(Socket) ->
     gen_server:cast(?MODULE, {delete_socket, Socket}).
 
+-spec stop() -> ok.
 stop() ->
     gen_server:cast(?MODULE, stop).
 
