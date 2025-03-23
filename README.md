@@ -44,7 +44,7 @@ client:create_account(Login, Password).
 ``` erlang
 Port = 1234, Login = <<"user_w">>, Password = <<"asdfgh">>.
 client:connect(Port).
-client:create_account(Login, Password).
+client:login(Login, Password).
 ```
 
  * Клиент 1 отправляет сообщение:
