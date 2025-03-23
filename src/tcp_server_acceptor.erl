@@ -1,4 +1,4 @@
--module(tcp_server).
+-module(tcp_server_acceptor).
 
 -behaviour(gen_server).
 
@@ -34,7 +34,7 @@ handle_continue(accept, State = #state{n = N, parent = Parent, listen_socket = L
         {ok, AcceptSocket}  ->
             io:format("session #~p, started Accept socket ~p~n", [N, AcceptSocket]),
             Parent ! {accept_socket, AcceptSocket},
-            server:start_socket(N + ?ACCEPT_COUNT),
+            tcp_server:start_socket(N + ?ACCEPT_COUNT),
             {noreply, State#state{accept_socket = AcceptSocket}};
         {error, Reason} ->
             io:format("Can't Accept by reason ~p~n", [Reason]),
@@ -57,8 +57,8 @@ handle_info({tcp, Socket, Msg}, State = #state{parent = Parent}) ->
     {noreply, State};
 handle_info({tcp_closed, Socket}, State = #state{n = N}) ->
     io:fwrite("tcp_closed: ~p~n", [Socket]),
-    server:delete_socket(Socket),
-    server:start_socket(N),
+    tcp_server:delete_socket(Socket),
+    tcp_server:start_socket(N),
     {stop, normal, State};
 handle_info({tcp_error, _Socket, _}, State) ->
     {stop, normal, State};

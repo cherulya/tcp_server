@@ -1,4 +1,4 @@
--module(server).
+-module(tcp_server).
 
 -behaviour(gen_server).
 

@@ -47,12 +47,12 @@ init([]) ->
     },
     ChildSpecs = [
         #{
-            id       => tcp_server,
-            start    => {tcp_server, start_link, []},
+            id       => tcp_server_acceptor,
+            start    => {tcp_server_acceptor, start_link, []},
             restart  => temporary,
             shutdown => 1000,
             type     => worker,
-            modules  => [tcp_server]
+            modules  => [tcp_server_acceptor]
         }
     ],
     {ok, {SupFlags, ChildSpecs}}.

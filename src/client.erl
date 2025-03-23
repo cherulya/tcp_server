@@ -97,6 +97,7 @@ handle_info(_Info, State) ->
 terminate(_Reason, _State = #client_state{socket = Socket}) ->
     io:format("Close socket ~p~n", [Socket]),
     gen_tcp:close(Socket),
+    tcp_server:delete_socket(Socket),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
