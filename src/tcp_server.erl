@@ -19,11 +19,11 @@
 -define(SERVER, ?MODULE).
 
 -record(state, {
-    accept_sockets = [],
-    users = #{},
-    auth_users = #{},
-    listen_socket,
-    workers
+    accept_sockets = [], % list of accept sockets
+    users = #{},         % map #{login => password} of all saved users 
+    auth_users = #{},    % map #{login => socket} of login users
+    listen_socket,       % listen socket
+    workers = []         % list of tcp_server_acceptor pids
 }).
 
 %%%===================================================================
